@@ -1,7 +1,7 @@
 // ModInfo+ v1.1 - Mod Info Plus for Mindustry
 // Displays real download statistics from GitHub
 
-const GITHUB_TOKEN = "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";
+const GITHUB_TOKEN = "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";
 
 // Cooldown system
 let lastRefreshTime = 0;
