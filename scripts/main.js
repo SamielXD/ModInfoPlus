@@ -1,5 +1,5 @@
-// ModInfo+ v1.1 - Mod Info Plus for Mindustry
-// Displays real download statistics from GitHub
+// ModInfo+ v1.2 - Mod Info Plus for Mindustry
+// Enhanced statistics with detailed view on click
 
 // Token is obfuscated to avoid GitHub detection
 function getGitHubToken() {
@@ -35,6 +35,9 @@ const modCategories = {
         {owner: "HuanXefh", repo: "Lovecraftian-Library", name: "Lovecraftian Library"},
         {owner: "m1cxzfw3q", repo: "Thermal-Engineering-Java", name: "Thermal Engineering"},
         {owner: "New-guys5634", repo: "rusted-dunes", name: "Rusted Dunes"},
+        {owner: "BSp-2", repo: "Echo-fleet", name: "Echo Fleet"},
+        {owner: "cyanide863", repo: "Arikoth", name: "Arikoth"},
+        {owner: "coaldeficit", repo: "MoreDefences", name: "More Defences"},
     ],
     "Tool Mods": [
         {owner: "I-hope1", repo: "mod-tools", name: "Mod Tools"},
@@ -61,46 +64,75 @@ function formatTime(seconds) {
     return secs + "s";
 }
 
+function formatDate(dateString) {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return months[date.getMonth()] + " " + date.getDate() + ", " + date.getFullYear();
+}
+
+function getDownloadTier(downloads) {
+    if (downloads >= 10000) return {name: "Diamond", color: "[sky]", icon: Icon.star};
+    if (downloads >= 5000) return {name: "Gold", color: "[yellow]", icon: Icon.star};
+    if (downloads >= 1000) return {name: "Silver", color: "[lightgray]", icon: Icon.star};
+    if (downloads >= 500) return {name: "Bronze", color: "[orange]", icon: Icon.star};
+    return {name: "Rising", color: "[white]", icon: Icon.defense};
+}
+
+function calculateGrowthRate(downloads, daysSinceFirst) {
+    if (daysSinceFirst <= 0) return 0;
+    return Math.round((downloads / daysSinceFirst) * 30); // Downloads per month
+}
+
 function fetchModStats(owner, repo, callback) {
     const cacheKey = owner + "/" + repo;
     const now = Date.now();
     
     // Check cache first
     if (statsCache[cacheKey] && (now - statsCache[cacheKey].time) < CACHE_TIME) {
-        const timeLeft = Math.ceil((CACHE_TIME - (now - statsCache[cacheKey].time)) / 1000);
-        callback(statsCache[cacheKey].downloads, statsCache[cacheKey].releases, timeLeft);
+        const cached = statsCache[cacheKey];
+        const timeLeft = Math.ceil((CACHE_TIME - (now - cached.time)) / 1000);
+        callback(cached, timeLeft);
         return;
     }
     
-    const url = "https://api.github.com/repos/" + owner + "/" + repo + "/releases";
-    
     Core.app.post(function() {
         try {
-            const http = new java.net.URL(url).openConnection();
-            http.setRequestMethod("GET");
+            // Fetch releases
+            const releasesUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/releases";
+            const releasesHttp = new java.net.URL(releasesUrl).openConnection();
+            releasesHttp.setRequestMethod("GET");
             if (GITHUB_TOKEN) {
-                http.setRequestProperty("Authorization", "Bearer " + GITHUB_TOKEN);
+                releasesHttp.setRequestProperty("Authorization", "Bearer " + GITHUB_TOKEN);
             }
-            http.setRequestProperty("Accept", "application/vnd.github+json");
-            http.setRequestProperty("User-Agent", "MindustryModStats");
-            http.setConnectTimeout(8000);
-            http.setReadTimeout(8000);
+            releasesHttp.setRequestProperty("Accept", "application/vnd.github+json");
+            releasesHttp.setRequestProperty("User-Agent", "MindustryModStats");
+            releasesHttp.setConnectTimeout(8000);
+            releasesHttp.setReadTimeout(8000);
             
-            const stream = http.getInputStream();
-            const reader = new java.io.BufferedReader(new java.io.InputStreamReader(stream));
+            const releasesStream = releasesHttp.getInputStream();
+            const releasesReader = new java.io.BufferedReader(new java.io.InputStreamReader(releasesStream));
             
-            let response = "";
+            let releasesResponse = "";
             let line;
-            while ((line = reader.readLine()) != null) {
-                response = response + line;
+            while ((line = releasesReader.readLine()) != null) {
+                releasesResponse = releasesResponse + line;
             }
-            reader.close();
+            releasesReader.close();
             
-            const releases = JSON.parse(response);
+            const releases = JSON.parse(releasesResponse);
             let totalDownloads = 0;
+            let latestReleaseDate = null;
+            let firstReleaseDate = null;
             
             for (let i = 0; i < releases.length; i++) {
-                const assets = releases[i].assets;
+                const release = releases[i];
+                const releaseDate = release.published_at;
+                
+                if (i === 0) latestReleaseDate = releaseDate;
+                if (i === releases.length - 1) firstReleaseDate = releaseDate;
+                
+                const assets = release.assets;
                 if (assets) {
                     for (let j = 0; j < assets.length; j++) {
                         const count = assets[j].download_count;
@@ -111,21 +143,158 @@ function fetchModStats(owner, repo, callback) {
                 }
             }
             
+            // Fetch repo info for stars
+            const repoUrl = "https://api.github.com/repos/" + owner + "/" + repo;
+            const repoHttp = new java.net.URL(repoUrl).openConnection();
+            repoHttp.setRequestMethod("GET");
+            if (GITHUB_TOKEN) {
+                repoHttp.setRequestProperty("Authorization", "Bearer " + GITHUB_TOKEN);
+            }
+            repoHttp.setRequestProperty("Accept", "application/vnd.github+json");
+            repoHttp.setRequestProperty("User-Agent", "MindustryModStats");
+            repoHttp.setConnectTimeout(8000);
+            repoHttp.setReadTimeout(8000);
+            
+            const repoStream = repoHttp.getInputStream();
+            const repoReader = new java.io.BufferedReader(new java.io.InputStreamReader(repoStream));
+            
+            let repoResponse = "";
+            while ((line = repoReader.readLine()) != null) {
+                repoResponse = repoResponse + line;
+            }
+            repoReader.close();
+            
+            const repoData = JSON.parse(repoResponse);
+            const stars = repoData.stargazers_count || 0;
+            
+            // Calculate growth rate
+            let growthRate = 0;
+            if (firstReleaseDate) {
+                const firstDate = new Date(firstReleaseDate);
+                const today = new Date();
+                const daysSinceFirst = Math.floor((today - firstDate) / (1000 * 60 * 60 * 24));
+                growthRate = calculateGrowthRate(totalDownloads, daysSinceFirst);
+            }
+            
             // Cache the result
-            statsCache[cacheKey] = {
+            const stats = {
                 downloads: totalDownloads,
                 releases: releases.length,
+                stars: stars,
+                latestRelease: latestReleaseDate,
+                firstRelease: firstReleaseDate,
+                growthRate: growthRate,
                 time: Date.now()
             };
             
+            statsCache[cacheKey] = stats;
+            
             Core.app.post(function() {
-                callback(totalDownloads, releases.length, -2);
+                callback(stats, -2);
             });
             
         } catch (e) {
             Core.app.post(function() {
-                callback(-1, 0, -1);
+                callback({downloads: -1, error: true}, -1);
             });
+        }
+    });
+}
+
+function showModDetails(mod) {
+    const detailDialog = new BaseDialog(mod.name);
+    
+    const mainTable = detailDialog.cont;
+    mainTable.clear();
+    
+    mainTable.add("[accent]" + mod.name).row();
+    mainTable.add("[lightgray]" + mod.owner + "/" + mod.repo).row();
+    mainTable.add("").height(20).row();
+    
+    const statusLabel = new Label("Loading statistics...");
+    statusLabel.setColor(Color.yellow);
+    mainTable.add(statusLabel).center().row();
+    
+    detailDialog.buttons.button("Back", function() {
+        detailDialog.hide();
+    }).size(100, 50);
+    
+    detailDialog.show();
+    
+    // Fetch stats
+    fetchModStats(mod.owner, mod.repo, function(stats, cacheTime) {
+        mainTable.clear();
+        
+        mainTable.add("[accent]" + mod.name).row();
+        mainTable.add("[lightgray]" + mod.owner + "/" + mod.repo).row();
+        mainTable.add("").height(20).row();
+        
+        if (stats.downloads >= 0) {
+            const tier = getDownloadTier(stats.downloads);
+            
+            // Tier badge
+            const tierTable = new Table();
+            tierTable.image(tier.icon).size(32).pad(5);
+            tierTable.add(tier.color + tier.name).pad(5);
+            mainTable.add(tierTable).row();
+            mainTable.add("").height(15).row();
+            
+            // Downloads
+            const downloadTable = new Table();
+            downloadTable.image(Icon.download).size(24).pad(5);
+            downloadTable.add("[white]Downloads: [accent]" + formatNumber(stats.downloads)).left();
+            mainTable.add(downloadTable).left().row();
+            
+            // Releases
+            const releaseTable = new Table();
+            releaseTable.image(Icon.box).size(24).pad(5);
+            releaseTable.add("[white]Releases: [accent]" + stats.releases).left();
+            mainTable.add(releaseTable).left().row();
+            
+            // Stars
+            if (stats.stars > 0) {
+                const starTable = new Table();
+                starTable.image(Icon.star).size(24).pad(5).color(Color.yellow);
+                starTable.add("[white]Stars: [yellow]" + stats.stars).left();
+                mainTable.add(starTable).left().row();
+            }
+            
+            mainTable.add("").height(15).row();
+            
+            // Latest release
+            if (stats.latestRelease) {
+                const latestTable = new Table();
+                latestTable.image(Icon.upload).size(24).pad(5);
+                latestTable.add("[white]Latest Release: [lightgray]" + formatDate(stats.latestRelease)).left();
+                mainTable.add(latestTable).left().row();
+            }
+            
+            // First release
+            if (stats.firstRelease) {
+                const firstTable = new Table();
+                firstTable.image(Icon.tree).size(24).pad(5);
+                firstTable.add("[white]First Release: [lightgray]" + formatDate(stats.firstRelease)).left();
+                mainTable.add(firstTable).left().row();
+            }
+            
+            // Growth rate
+            if (stats.growthRate > 0) {
+                mainTable.add("").height(15).row();
+                const growthTable = new Table();
+                growthTable.image(Icon.up).size(24).pad(5);
+                growthTable.add("[white]Growth: [accent]~" + formatNumber(stats.growthRate) + " downloads/month").left();
+                mainTable.add(growthTable).left().row();
+            }
+            
+            // Cache info
+            if (cacheTime > 0) {
+                mainTable.add("").height(15).row();
+                mainTable.add("[gray]Cached - Refreshes in " + formatTime(cacheTime)).row();
+            }
+            
+        } else {
+            mainTable.add("[scarlet]Failed to load statistics").row();
+            mainTable.add("[lightgray]No releases found or connection error").row();
         }
     });
 }
@@ -137,7 +306,7 @@ Events.on(ClientLoadEvent, function() {
 });
 
 function showStatsDialog() {
-    const dialog = new BaseDialog("ModInfo+ v1.1");
+    const dialog = new BaseDialog("ModInfo+ v1.2");
     
     const mainTable = dialog.cont;
     mainTable.clear();
@@ -192,28 +361,32 @@ function showStatsDialog() {
             const isYourMod = mod.owner === "SamielXD";
             const nameColor = isYourMod ? "[cyan]" : "[white]";
             
-            modTable.add(nameColor + mod.name).width(250).left().row();
+            // Clickable mod name button
+            modTable.button(nameColor + mod.name, function() {
+                showModDetails(mod);
+            }).width(250).left().row();
             
             const statusLabel = new Label("Loading...");
             statusLabel.setColor(Color.yellow);
-            modTable.add(statusLabel).left().row();
+            modTable.add(statusLabel).left().padLeft(10).row();
             
             mainTable.add(modTable).fillX().row();
             mainTable.image().color(Color.gray).fillX().height(1).pad(5).row();
             
             const delay = (i - startIndex) * 0.3;
             Timer.schedule(function() {
-                fetchModStats(mod.owner, mod.repo, function(downloads, releases, timeLeft) {
-                    if (downloads >= 0) {
-                        const formatted = formatNumber(downloads);
-                        let text = "[lime]" + formatted + " downloads (" + releases + " releases)";
+                fetchModStats(mod.owner, mod.repo, function(stats, cacheTime) {
+                    if (stats.downloads >= 0) {
+                        const formatted = formatNumber(stats.downloads);
                         
-                        if (timeLeft > 0) {
-                            text = text + "\n[gray]Cached - " + formatTime(timeLeft) + " until refresh";
+                        let text = "[white]" + formatted + " downloads | " + stats.releases + " releases";
+                        
+                        if (cacheTime > 0) {
+                            text = text + " [gray](cached)";
                         }
                         
                         statusLabel.setText(text);
-                        statusLabel.setColor(Color.lime);
+                        statusLabel.setColor(Color.white);
                     } else {
                         statusLabel.setText("[scarlet]Failed / No releases");
                         statusLabel.setColor(Color.scarlet);
@@ -283,6 +456,6 @@ function showStatsDialog() {
     dialog.show();
 }
 
-print("ModInfo+ v1.1 loaded!");
-print("Tracking mods across " + Object.keys(modCategories).length + " categories");
+print("ModInfo+ v1.2 loaded!");
+print("Click on any mod name to see detailed statistics!");
 print("Cache system enabled - stats refresh every 5 minutes");
