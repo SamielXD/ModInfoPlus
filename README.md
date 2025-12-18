@@ -178,3 +178,4 @@ ModInfo+ connects to the **GitHub API** and fetches:
 ---
 
 Thanks for using **ModInfo+** and helping grow the Mindustry mod community! 🎉
+
