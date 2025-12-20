@@ -46,7 +46,7 @@ const modCategories = {
     ],
     "Content Mods": [
         {owner: "Fat-Bird-Owner", repo: "The-Infestations", name: "The Infestations"},
-        {owner: "Novanox4", repo: "Astralis-ARCHIVED", name: "Astralis"},
+        {owner: "Novanox4", repo: "Astralis", name: "Astralis (Unavailable right now)"},
         {owner: "HuanXefh", repo: "Lovecraftian-Library", name: "Lovecraftian Library"},
         {owner: "m1cxzfw3q", repo: "Thermal-Engineering-Java", name: "Thermal Engineering"},
         {owner: "New-guys5634", repo: "rusted-dunes", name: "Rusted Dunes"},
