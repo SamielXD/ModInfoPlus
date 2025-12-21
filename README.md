@@ -179,3 +179,7 @@ ModInfo+ connects to the **GitHub API** and fetches:
 
 Thanks for using **ModInfo+** and helping grow the Mindustry mod community! 🎉
 
+## 💥 Goals
+- goal: 3/5 stars
+- goal: 7/15 downloads
+- goal: 4/6 releases
